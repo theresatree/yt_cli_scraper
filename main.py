@@ -1,4 +1,5 @@
 import yt_dlp
+import copy
 from urllib.parse import urlparse
 from dataclasses import dataclass
 import os
@@ -336,233 +337,179 @@ def confirmSelection():
 ##########            yt_dlp library
 ##########
 ##########################################################
+
 def downloadChannelVideo():
-    """
-    Download videos from a YouTube channel with smart format and resolution fallbacks.
-    - Prefers requested extension, with fallback to alternative if not available
-    - Selects closest available resolution (preferring next highest if exact match unavailable)
-    """
-    print("Starting channel video download process...")
-    
-    # Create output directory if it doesn't exist
+    print("\nStarting YouTube channel download process...")
+
     output_dir = os.path.join(output_path, '')
     os.makedirs(output_dir, exist_ok=True)
-    
-    # Process filter keywords
+
+    channel_url = videoParameter.url.strip()
+    while channel_url.endswith('/'):
+        channel_url = channel_url[:-1]
+    channel_identifier = channel_url.split('/')[-1]
+    print(f"Channel identifier: {channel_identifier}")
+
     filter_keywords = []
     if videoParameter.filter:
-        filter_keywords = [kw.strip().lower() for kw in videoParameter.filter.split(',') if kw.strip()]
-    
-    # Build a smarter format selection string based on priorities
+        filter_keywords = [kw.strip() for kw in videoParameter.filter.split(',') if kw.strip()]
+        print(f"Using filter keywords: {', '.join(filter_keywords)}")
+
+    res_filter = "" if videoParameter.resolution == "best" else f"[height<={videoParameter.resolution}]"
+
     if videoParameter.mode == "video+audio":
-        # For combined video+audio
-        if videoParameter.extension == "mp4":
-            # Try mp4 first, then webm
-            format_base = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=mp4]/best[ext=webm]/best"
-        else:
-            # Try webm first, then mp4
-            format_base = "bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=webm]/best[ext=mp4]/best"
+        format_string = (
+            f"bv*{res_filter}[ext=mp4]+ba[ext=m4a]/"
+            f"b{res_filter}[ext=mp4]/best"
+        )
+    elif videoParameter.mode == "video":
+        format_string = (
+            f"bv*{res_filter}[ext=mp4]/"
+            f"b{res_filter}[ext=mp4]/bestvideo"
+        )
     else:
-        # For video only
-        if videoParameter.extension == "mp4":
-            # Try mp4 first, then webm
-            format_base = "bestvideo[ext=mp4]/bestvideo[ext=webm]/best[ext=mp4]/best[ext=webm]/best"
-        else:
-            # Try webm first, then mp4
-            format_base = "bestvideo[ext=webm]/bestvideo[ext=mp4]/best[ext=webm]/best[ext=mp4]/best"
-    
-    # Handle resolution constraints
-    if videoParameter.resolution != "best":
-        try:
-            target_resolution = int(videoParameter.resolution)
-            
-            # Create resolution-specific format strings with fallbacks
-            resolution_formats = []
-            
-            # First try: exact resolution match
-            resolution_formats.append(f"{format_base}[height={target_resolution}]")
-            
-            # Second try: closest resolution below target (in descending order)
-            standard_resolutions = [2160, 1440, 1080, 720, 480, 360, 240, 144]
-            lower_resolutions = [r for r in standard_resolutions if r < target_resolution]
-            lower_resolutions.sort(reverse=True)  # Highest to lowest
-            
-            for res in lower_resolutions:
-                resolution_formats.append(f"{format_base}[height={res}]")
-            
-            # Third try: closest resolution above target (in ascending order)
-            higher_resolutions = [r for r in standard_resolutions if r > target_resolution]
-            higher_resolutions.sort()  # Lowest to highest
-            
-            for res in higher_resolutions:
-                resolution_formats.append(f"{format_base}[height={res}]")
-            
-            # Finally add the base format as a last resort
-            resolution_formats.append(format_base)
-            
-            # Join all format options with fallback operator
-            format_string = '/'.join(resolution_formats)
-        except ValueError:
-            # If resolution parsing fails, use the base format
-            format_string = format_base
-    else:
-        # For "best" resolution, just use the base format
-        format_string = format_base
-    
-    print(f"Using format selector: {format_string}")
-    
-    # Main download logic
+        raise ValueError(f"Unknown mode: {videoParameter.mode}")
+
+    print(f"Using format: {format_string}")
+
+    base_ydl_opts = {
+        'format': format_string,
+        'ignoreerrors': True,
+        'quiet': False,
+        'no_warnings': True,
+        'hls_prefer_native': True,
+        'hls_prefer_ffmpeg': True,
+        'verbose': True,
+        'skip_unavailable_fragments': True,
+        'compat_opts': ['no-youtube-unavailable-videos'],
+        'allow_unplayable_formats': False,
+        'extractor_args': {'youtube': {'player_client': 'android'}},
+    }
+
+    if videoParameter.throttleDownloadSpeed > 0:
+        base_ydl_opts['ratelimit'] = int(videoParameter.throttleDownloadSpeed * 1024 * 1024)
+
     try:
-        print("Extracting channel information...")
-        
-        # First extraction to get list of videos
-        info_opts = {
-            'quiet': True,
-            'extract_flat': True,
-            'ignoreerrors': True
-        }
-        
-        with yt_dlp.YoutubeDL(info_opts) as ydl:
-            info_dict = ydl.extract_info(videoParameter.url, download=False)
-            if not info_dict:
-                print("Failed to extract information from URL.")
-                return
-            
-            # Get entries from the extracted info
-            entries = info_dict.get('entries', [])
-            if not entries and not info_dict.get('_type') == 'playlist':
-                # Single video case
-                entries = [info_dict]
-            
-            if not entries:
-                print("No videos found in the channel or playlist.")
-                return
-                
-            print(f"Found {len(entries)} total videos in channel/playlist.")
-            
-            # Filter entries by type (video, shorts, playlist)
-            filtered_entries = []
-            for entry in entries:
-                if not entry:
-                    continue
-                
-                # Get video URL
-                entry_url = entry.get('url') or entry.get('webpage_url')
-                if not entry_url:
-                    continue
-                
-                # Determine video type
-                is_short = '/shorts/' in str(entry_url)
-                is_playlist = 'playlist' in str(entry_url) or 'list=' in str(entry_url)
-                
-                # Apply user's video type filter
-                should_include = False
-                
-                if (is_short and videoParameter.shorts) or \
-                   (is_playlist and videoParameter.playlist) or \
-                   (not is_short and not is_playlist and videoParameter.videos):
-                    should_include = True
-                
-                if should_include:
-                    filtered_entries.append(entry)
-            
-            print(f"After type filtering: {len(filtered_entries)} videos")
-        
-        # Content filtering based on keywords
+        print("\nExtracting channel information...")
+
+        urls_to_process = []
+        if videoParameter.videos:
+            urls_to_process.append(f"{channel_url}/videos")
+        if videoParameter.shorts:
+            urls_to_process.append(f"{channel_url}/shorts")
+        if videoParameter.playlist:
+            urls_to_process.append(f"{channel_url}/playlists")
+
+        if not urls_to_process:
+            urls_to_process.append(channel_url)
+
         if filter_keywords:
-            print(f"Applying content filters: {', '.join(filter_keywords)}")
-            filtered_by_content = []
-            
-            # Content info extraction options
-            content_opts = {
+            keyword_string = ' '.join(filter_keywords)
+            if channel_identifier.startswith('@'):
+                channel_name = channel_identifier[1:]
+            else:
+                channel_name = channel_identifier
+            search_query = f"ytsearch:{keyword_string} channel:{channel_name}"
+            urls_to_process.append(search_query)
+
+        successful_downloads = 0
+        total_videos_found = 0
+
+        for url_index, url in enumerate(urls_to_process):
+            print(f"\nProcessing URL {url_index + 1}/{len(urls_to_process)}: {url}")
+
+            # Extract full info (no extract_flat to avoid SABR)
+            extract_opts = copy.deepcopy(base_ydl_opts)
+            extract_opts.update({
                 'quiet': True,
                 'skip_download': True,
-                'ignoreerrors': True
-            }
-            
-            for entry in filtered_entries:
-                try:
-                    entry_url = entry.get('url') or entry.get('webpage_url')
-                    if not entry_url:
-                        continue
-                    
-                    # Get detailed info for this video
-                    with yt_dlp.YoutubeDL(content_opts) as ydl_info:
-                        video_info = ydl_info.extract_info(entry_url, download=False)
-                        
-                        if not video_info:
-                            continue
-                        
-                        # Get title and description for filtering
-                        title = str(video_info.get('title', '')).lower()
-                        description = str(video_info.get('description', '')).lower()
-                        
-                        # Check if any keyword matches
-                        if any(kw in title or kw in description for kw in filter_keywords):
-                            filtered_by_content.append(video_info)
-                except Exception as e:
-                    print(f"Error processing video: {e}")
-            
-            filtered_entries = filtered_by_content
-            print(f"After content filtering: {len(filtered_entries)} videos")
-        
-        # Apply video count limit
-        if videoParameter.no_of_video > 0:
-            filtered_entries = filtered_entries[:videoParameter.no_of_video]
-            print(f"Limited to first {videoParameter.no_of_video} videos")
-        
-        # Check if we have videos to download
-        if not filtered_entries:
-            print("No videos found after applying all filters.")
-            return
-        
-        print(f"Proceeding to download {len(filtered_entries)} videos...")
-        
-        # Download videos one by one
-        for idx, entry in enumerate(filtered_entries, 1):
-            try:
-                # Get video URL and title
-                if isinstance(entry, dict):
-                    entry_url = entry.get('url') or entry.get('webpage_url')
-                    title = entry.get('title', f"Video #{idx}")
-                else:
-                    entry_url = entry
-                    title = f"Video #{idx}"
-                
-                if not entry_url:
-                    print(f"[{idx}/{len(filtered_entries)}] Skipping: No URL found")
+            })
+
+            with yt_dlp.YoutubeDL(extract_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if not info:
+                    print(f"No information found for {url}")
                     continue
-                
-                print(f"\n[{idx}/{len(filtered_entries)}] Downloading: {title}")
-                print(f"URL: {entry_url}")
-                
-                # Create download options for this specific video
-                download_opts = {
-                    'format': format_string,
-                    'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
-                    'quiet': False,
-                    'no_warnings': True,
-                    'ignoreerrors': True,
-                    'verbose': False  # Set to True for debugging
-                }
-                
-                # Apply rate limiting if specified
-                if videoParameter.throttleDownloadSpeed > 0:
-                    download_opts['ratelimit'] = int(videoParameter.throttleDownloadSpeed * 1024 * 1024)
-                
-                # Download this video
-                with yt_dlp.YoutubeDL(download_opts) as ydl_download:
-                    ydl_download.download([entry_url])
-                    print(f"✓ Successfully downloaded: {title}")
-            except Exception as e:
-                print(f"× Failed to download video #{idx}: {e}")
-                print(f"  Error details: {str(e)}")
-    
+
+                entries = []
+                if 'entries' in info:
+                    entries = [e for e in info['entries'] if e is not None]
+                    print(f"Found {len(entries)} videos in this section")
+                elif info.get('_type') != 'playlist':
+                    entries = [info]
+                    print("Found a single video")
+
+                if not entries:
+                    print("No videos found in this section")
+                    continue
+
+                total_videos_found += len(entries)
+
+                # Filter videos by keywords if needed (for non-search URLs)
+                if filter_keywords and not url.startswith('ytsearch'):
+                    print(f"Filtering {len(entries)} videos by keywords...")
+                    filtered_entries = []
+                    for i, entry in enumerate(entries):
+                        video_url = entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
+                        if not video_url:
+                            continue
+                        try:
+                            detail_opts = {
+                                'quiet': True,
+                                'skip_download': True,
+                                'extractor_args': {'youtube': {'player_client': 'android'}}
+                            }
+                            with yt_dlp.YoutubeDL(detail_opts) as detail_ydl:
+                                print(f"Checking video {i + 1}/{len(entries)}...", end="\r")
+                                video_info = detail_ydl.extract_info(video_url, download=False)
+                                if video_info:
+                                    title = str(video_info.get('title', '')).lower()
+                                    description = str(video_info.get('description', '')).lower()
+                                    if any(kw.lower() in title or kw.lower() in description for kw in filter_keywords):
+                                        filtered_entries.append(video_info)
+                        except Exception as e:
+                            print(f"\nError checking video: {e}")
+
+                    entries = filtered_entries
+                    print(f"\nFound {len(entries)} videos matching keywords")
+
+                # Limit number of videos
+                if videoParameter.no_of_video > 0:
+                    entries = entries[:videoParameter.no_of_video]
+
+                if entries:
+                    print(f"\nDownloading {len(entries)} videos...")
+
+                    for i, entry in enumerate(entries):
+                        video_url = entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
+                        if not video_url:
+                            continue
+
+                        title = entry.get('title', f"Video #{i + 1}")
+                        print(f"\n[{i + 1}/{len(entries)}] Downloading: {title}")
+
+                        # Prepare download options, keep all your params intact
+                        download_opts = copy.deepcopy(base_ydl_opts)
+                        download_opts['extractor_args'] = {'youtube': {'player_client': 'android'}}
+
+                        # Use format string from above, throttling included
+                        if videoParameter.throttleDownloadSpeed > 0:
+                            download_opts['ratelimit'] = int(videoParameter.throttleDownloadSpeed * 1024 * 1024)
+
+                        with yt_dlp.YoutubeDL(download_opts) as download_ydl:
+                            download_ydl.download([video_url])
+                            print(f"✓ Successfully downloaded: {title}")
+                            successful_downloads += 1
+
+        print(f"\nDownload process completed.")
+        print(f"Total videos found (before filtering): {total_videos_found}")
+        print(f"Successfully downloaded: {successful_downloads}")
+
     except Exception as e:
-        print(f"An error occurred during download process: {e}")
+        print(f"An error occurred in the main process: {e}")
         import traceback
         traceback.print_exc()
-        return
+
 
 def downloadIndividualVideo():
     clearCMD()
