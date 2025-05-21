@@ -1,6 +1,7 @@
 brotli==1.1.0
 certifi==2025.4.26
 charset-normalizer==3.4.2
+ffmpeg==1.4
 idna==3.10
 mutagen==1.47.0
 pycryptodomex==3.23.0
