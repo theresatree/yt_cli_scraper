@@ -1,0 +1,23 @@
+services:
+  po-token-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider
+    container_name: bgutil-provider
+    ports:
+      - "4416:4416"
+    restart: unless-stopped
+
+  yt-scraper:
+    build:
+      context: .
+    container_name: yt-cli-scraper
+    depends_on:
+      - po-token-provider
+    working_dir: /app
+    volumes:
+      - videos-data:/app/videos
+    stdin_open: true
+    tty: true
+    command: ["python", "main.py"]
+
+volumes:
+  videos-data:
