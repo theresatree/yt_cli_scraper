@@ -1,7 +1,12 @@
 # 🎥 yt_cli_scraper
 
-An interactive YouTube video & channel downloader built with [yt-dlp](https://github.com/yt-dlp/yt-dlp), powered by Docker.  .
+An interactive YouTube video & channel downloader built with [yt-dlp](https://github.com/yt-dlp/yt-dlp), powered by Docker.
 
+> 💡 **Note:**  
+> This project is designed to work alongside [`bgutil-ytdlp-pot-provider`](https://github.com/Brainicism/bgutil-ytdlp-pot-provider),  
+> which automates the collection of PO Tokens and supplies them to [`yt-dlp-get-pot`](https://github.com/coletdjnz/yt-dlp-get-pot).  
+> 
+> 📌 Learn more about [cases where a PO token is required](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide).
 ---
 
 ## 🚀 Quick Start
