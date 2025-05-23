@@ -338,7 +338,6 @@ def confirmSelection():
 ##########################################################
 
 def downloadChannelVideo():
-
     print("\n🚀 Starting YouTube channel download process...")
 
     output_dir = os.path.join(output_path, '')
@@ -398,9 +397,14 @@ def downloadChannelVideo():
             channel_name = channel_identifier[1:] if channel_identifier.startswith('@') else channel_identifier
             urls_to_process.append(f"ytsearch:{keyword_string} channel:{channel_name}")
 
-        total_found, successful = 0, 0
+        total_found = 0
+        successful = 0
+        remaining = videoParameter.no_of_video
 
         for url_index, url in enumerate(urls_to_process):
+            if remaining <= 0:
+                break
+
             print(f"\n🔗 Processing URL {url_index + 1}/{len(urls_to_process)}: {url}")
 
             extract_opts = copy.deepcopy(base_ydl_opts)
@@ -409,7 +413,7 @@ def downloadChannelVideo():
                 'no_warnings': False,
                 'verbose': True,
                 'skip_download': True,
-                'extract_flat': True  # force flat playlist listing
+                'extract_flat': True
             })
 
             with yt_dlp.YoutubeDL(extract_opts) as ydl:
@@ -443,12 +447,17 @@ def downloadChannelVideo():
                     entries = filtered_entries
                     print(f"🧼 Filtered to {len(entries)} matching video(s)")
 
-                if videoParameter.no_of_video > 0:
-                    entries = entries[:videoParameter.no_of_video]
+                if remaining > 0:
+                    entries = entries[:remaining]
+                else:
+                    break
 
                 total_found += len(entries)
 
                 for i, entry in enumerate(entries):
+                    if remaining <= 0:
+                        break
+
                     video_url = entry.get('url') or entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
                     title = entry.get('title', f"Video #{i + 1}")
                     print(f"\n⬇️ [{i + 1}/{len(entries)}] Downloading: {title}")
@@ -459,6 +468,7 @@ def downloadChannelVideo():
                         download_ydl.download([video_url])
                         print(f"✅ Downloaded: {title}")
                         successful += 1
+                        remaining -= 1
 
         print(f"\n🎉 Done! Downloaded {successful}/{total_found} matched videos.")
 
