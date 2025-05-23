@@ -1,12 +1,17 @@
 FROM python:3.11-slim
 
-# install required packages
 WORKDIR /app
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# copy source code
+# Always install the latest versions of these 3 tools
+RUN pip install --no-cache-dir --force-reinstall --upgrade \
+    yt-dlp-get-pot \
+    bgutil-ytdlp-pot-provider
+
+RUN pip install --no-cache-dir --upgrade --pre "yt-dlp[default]"
+
 COPY . .
 
-# default run command
 CMD ["python", "main.py"]
