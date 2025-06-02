@@ -399,10 +399,10 @@ def downloadChannelVideo():
 
         total_found = 0
         successful = 0
-        remaining = videoParameter.no_of_video
-        print("📥 No limit set. Will download all available videos." if remaining == 0 else f"📥 Will download up to {remaining} videos.")
+        remaining = None if videoParameter.no_of_video == 0 else videoParameter.no_of_video
+        print("📥 No limit set. Will download all available videos." if remaining is None else f"📥 Will download up to {remaining} videos.")
         for url_index, url in enumerate(urls_to_process):
-            if remaining <= 0:
+            if remaining is not None and remaining <= 0:
                 break
 
             print(f"\n🔗 Processing URL {url_index + 1}/{len(urls_to_process)}: {url}")
@@ -445,15 +445,13 @@ def downloadChannelVideo():
                         else:
                             print(f"⛔️ SKIP: {e.get('title')}")
                     entries = filtered_entries
-                    print(f"🧼 Filtered to {len(entries)} matching video(s)")
 
-                if remaining > 0:
+                if remaining is not None:
                     entries = entries[:remaining]
 
-                total_found += len(entries)
-
+                total_found += len(entries) 
                 for i, entry in enumerate(entries):
-                    if remaining <= 0:
+                    if remaining is not None and remaining <= 0:
                         break
 
                     video_url = entry.get('url') or entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
@@ -466,7 +464,8 @@ def downloadChannelVideo():
                         download_ydl.download([video_url])
                         print(f"✅ Downloaded: {title}")
                         successful += 1
-                        remaining -= 1
+                        if remaining is not None:
+                            remaining -= 1
 
         print(f"\n🎉 Done! Downloaded {successful}/{total_found} matched videos.")
 
