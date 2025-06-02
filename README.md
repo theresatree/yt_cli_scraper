@@ -5,7 +5,7 @@ An interactive YouTube video & channel downloader built with [yt-dlp](https://gi
 > 💡 **Note:**  
 > This project is designed to work alongside [`bgutil-ytdlp-pot-provider`](https://github.com/Brainicism/bgutil-ytdlp-pot-provider),  
 > which automates the collection of PO Tokens and supplies them to [`yt-dlp-get-pot`](https://github.com/coletdjnz/yt-dlp-get-pot).  
-> 
+
 > 📌 Learn more about [cases where a PO token is required](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide).
 ---
 
@@ -30,14 +30,5 @@ docker compose run --rm yt-scraper
 
 ## 📁 Output
 
-All downloaded videos are saved into a Docker-managed volume (`videos-data`).  
-To copy the files to your local machine after a run:
+All downloaded videos are saved into a local folder `./videos`
 
-### 💡 Optional: Change back to a host bind mount
-
-If you want downloaded videos to appear directly on your host:
-Adjust the `volumes` section in `docker-compose.yml`
-
-```yaml
-volumes:
-  - ./videos:/app/videos
