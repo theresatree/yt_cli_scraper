@@ -31,4 +31,3 @@ docker compose run --rm yt-scraper
 ## 📁 Output
 
 All downloaded videos are saved into a local folder `./videos`
-
