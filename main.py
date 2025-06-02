@@ -400,7 +400,7 @@ def downloadChannelVideo():
         total_found = 0
         successful = 0
         remaining = videoParameter.no_of_video
-
+        print("📥 No limit set. Will download all available videos." if remaining == 0 else f"📥 Will download up to {remaining} videos.")
         for url_index, url in enumerate(urls_to_process):
             if remaining <= 0:
                 break
@@ -449,8 +449,6 @@ def downloadChannelVideo():
 
                 if remaining > 0:
                     entries = entries[:remaining]
-                else:
-                    break
 
                 total_found += len(entries)
 
