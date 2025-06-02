@@ -14,10 +14,7 @@ services:
       - po-token-provider
     working_dir: /app
     volumes:
-      - videos-data:/app/videos
+      - ./videos:/app/videos
     stdin_open: true
     tty: true
     command: ["python", "main.py"]
-
-volumes:
-  videos-data:
