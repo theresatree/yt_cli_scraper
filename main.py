@@ -553,10 +553,14 @@ def downloadIndividualVideo():
         getURL(True)
 
 def downloadYoutubeVideo(format):
+    output_dir = os.path.join(output_path, '')
+    os.makedirs(output_dir, exist_ok=True)
+
     format_code = format['format_id']
     ydl_opts = {
             'format': format_code,
             'ratelimit': videoParameter.throttleDownloadSpeed * 1024 * 1024,  # 2 MB/s speed limit to prevent IP from being blocked
+            'outtmpl': os.path.join(output_dir, '%(title)s [%(id)s].%(ext)s')
     } 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([videoParameter.url])
